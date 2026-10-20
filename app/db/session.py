@@ -1,6 +1,7 @@
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from collections.abc import Generator
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings
 
@@ -26,3 +27,10 @@ def test_db_connection():
     with engine.connect() as connection:
         result = connection.execute(text("SELECT DATABASE()"))
         return result.scalar()
+
+def get_db() -> Generator[Session, None, None]:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
