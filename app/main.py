@@ -12,9 +12,13 @@ from app.services.knowledge_base import (
     update_knowledge_base as update_knowledge_base_service,
     delete_knowledge_base as delete_knowledge_base_service,
 )
-from fastapi import Depends, FastAPI, HTTPException, status, Response
+from pathlib import Path
+from fastapi import Depends, FastAPI, HTTPException, status, Response, UploadFile, File
+from app.schemas.document import DocumentResponse
+from app.services.document import create_document as create_document_service
 
 app = FastAPI(title="KnowledgeHub AI")
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MiB
 
 @app.get("/health")
 def health_check():
@@ -112,4 +116,69 @@ def delete_knowledge_base_detail(
         )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post(
+    "/knowledge-bases/{knowledge_base_id}/documents",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_document(
+    knowledge_base_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        if not file.filename:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="未提供文件名",
+            )
+
+        original_filename = Path(
+            file.filename.replace("\\", "/")
+        ).name
+
+        content = await file.read(MAX_UPLOAD_SIZE + 1)
+
+        if len(content) > MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail="文件不能超过 10 MiB",
+            )
+
+        if not content:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="不能上传空文件",
+            )
+
+        try:
+            document = create_document_service(
+                db=db,
+                knowledge_base_id=knowledge_base_id,
+                original_filename=original_filename,
+                content=content,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        except OSError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="服务器保存文件失败",
+            ) from exc
+
+    finally:
+        await file.close()
+
+    if document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="知识库不存在",
+        )
+
+    return document
 

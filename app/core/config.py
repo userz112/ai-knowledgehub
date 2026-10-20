@@ -15,5 +15,4 @@ class Settings:
     DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
     DB_NAME: str = os.getenv("DB_NAME", "knowledgehub_ai")
 
-
 settings = Settings()
