@@ -16,6 +16,9 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, status, Response, UploadFile, File
 from app.schemas.document import DocumentResponse
 from app.services.document import create_document as create_document_service
+from app.models.document import Document
+from app.services.document_chunk import process_document_chunks
+from app.schemas.document_process import DocumentProcessResponse
 
 app = FastAPI(title="KnowledgeHub AI")
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MiB
@@ -182,3 +185,46 @@ async def upload_document(
 
     return document
 
+
+@app.post(
+    "/documents/{document_id}/process",
+    response_model=DocumentProcessResponse,
+)
+def process_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+):
+    # 1. 检查文档是否存在
+    document = db.get(Document, document_id)
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="文档不存在",
+        )
+
+    try:
+        # 2. 执行正文提取、文本分块和数据库保存
+        chunk_count = process_document_chunks(
+            db=db,
+            document_id=document_id,
+        )
+
+        return DocumentProcessResponse(
+            document_id=document_id,
+            status="processed",
+            chunk_count=chunk_count,
+            message="文档处理成功",
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="文档处理失败，请检查服务端日志",
+        ) from exc
