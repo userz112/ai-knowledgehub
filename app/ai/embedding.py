@@ -1,8 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
-
 from sentence_transformers import SentenceTransformer
-
 from app.core.config import BASE_DIR
 
 

@@ -8,3 +8,6 @@ class DocumentProcessResponse(BaseModel):
     status: str
     chunk_count: int
     message: str
+
+class ChatRequest(BaseModel):
+    question: str

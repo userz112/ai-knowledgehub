@@ -1,4 +1,4 @@
-
+from app.ai.vector_store import delete_document_chunks, upsert_chunks
 from sqlalchemy.orm import Session
 
 from app.models.document import Document
@@ -55,8 +55,14 @@ def process_document_chunks(
         db.add_all(chunk_records)
         document.status = "processed"
 
-        # 6. 提交事务
+        # 6. 先提交新的 MySQL 文本块
         db.commit()
+
+        # 7. 删除该文档在 Chroma 中的旧向量
+        delete_document_chunks(document_id)
+
+        # 8. 为新的文本块生成向量并写入 Chroma
+        upsert_chunks(chunk_records)
 
         return len(chunk_records)
 
