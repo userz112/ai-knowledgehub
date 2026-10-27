@@ -19,6 +19,10 @@ from app.services.document import create_document as create_document_service
 from app.models.document import Document
 from app.services.document_chunk import process_document_chunks
 from app.schemas.document_process import DocumentProcessResponse
+from app.schemas.chat import ChatRequest, ChatResponse
+from app.services.chat import ask_question
+from app.models.knowledge_base import KnowledgeBase
+
 
 app = FastAPI(title="KnowledgeHub AI")
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MiB
@@ -228,3 +232,31 @@ def process_document(
             status_code=500,
             detail="文档处理失败，请检查服务端日志",
         ) from exc
+
+@app.post(
+    "/chat",
+    response_model=ChatResponse,
+)
+def chat(
+    data: ChatRequest,
+    db: Session = Depends(get_db),
+):
+    knowledge_base = db.get(KnowledgeBase, data.knowledge_base_id)
+    if knowledge_base is None:
+        raise HTTPException(
+            status_code=404,
+            detail="知识库不存在",
+        )
+    try:
+        return ask_question(
+            db=db,
+            question=data.question,
+            knowledge_base_id=data.knowledge_base_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    
+

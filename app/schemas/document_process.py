@@ -9,5 +9,4 @@ class DocumentProcessResponse(BaseModel):
     chunk_count: int
     message: str
 
-class ChatRequest(BaseModel):
-    question: str
+

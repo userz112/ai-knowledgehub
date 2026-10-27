@@ -5,7 +5,7 @@ import chromadb
 from app.core.config import BASE_DIR
 
 CHROMA_DB_DIR = BASE_DIR / "chroma_db"
-COLLECTION_NAME = "knowledgehub_chunks_v2"
+COLLECTION_NAME = "knowledgehub_chunks_v4"
 
 @lru_cache(maxsize=1)
 def get_chroma_collection():
@@ -14,7 +14,11 @@ def get_chroma_collection():
     )
 
     return client.get_or_create_collection(
-        name=COLLECTION_NAME,
+    name=COLLECTION_NAME,
+    metadata={
+        "hnsw:batch_size": 100,
+        "hnsw:sync_threshold": 100,
+        },
     )
 
 def upsert_chunks(chunks: list[DocumentChunk]) -> int:
@@ -55,6 +59,7 @@ def delete_document_chunks(document_id: int) -> None:
 def search_chunks(
     query: str,
     n_results: int = 5,
+    where: dict | None = None,
 ) -> dict:
     if not query.strip():
         raise ValueError("查询内容不能为空")
@@ -65,8 +70,13 @@ def search_chunks(
     query_vector = encode_texts([query])[0]
     collection = get_chroma_collection()
 
-    return collection.query(
-        query_embeddings=[query_vector],
-        n_results=n_results,
-        include=["documents", "metadatas", "distances"],
-    )
+    query_kwargs = {
+        "query_embeddings": [query_vector],
+        "n_results": n_results,
+        "include": ["documents", "metadatas", "distances"],
+    }
+
+    if where is not None:
+        query_kwargs["where"] = where
+
+    return collection.query(**query_kwargs)
